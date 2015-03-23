@@ -1,0 +1,7 @@
+output/
+convertedOutput/
+lib/
+nbproject/
+build/
+build.xml
+manifest.mf
