@@ -14,6 +14,8 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.time.LocalDate;
 import java.time.Month;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -22,6 +24,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -88,6 +91,7 @@ public class MelbourneTest {
         assert generatedUrl.equals(expectedUrl);
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testDownloadFile() throws IOException {
         try {
@@ -111,6 +115,7 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testDownloadFilesInRange() throws IOException {
         // See other tests for range checks. //
@@ -137,6 +142,7 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testDownloadFilesInRange_FromDate() throws IOException {
         try {
@@ -155,6 +161,7 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testDownloadFilesInRange_ToDate() throws IOException {
         try {
@@ -173,6 +180,7 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testDownloadFilesInRange_FromToDate() throws IOException {
         try {
@@ -190,6 +198,7 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testUpdateDirectory() throws IOException {
         try {
@@ -219,10 +228,11 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testUpdateWhenUpToDate() throws IOException {
         try {
-        // Assert that update() does not add any files when already at latest day.
+            // Assert that update() does not add any files when already at latest day.
             // Assert that upate does not overwrite latest day.
             LocalDate latestDay = LocalDate.now().minusDays(1);
             melbourne.setOutputDirectory(tempFolder.getRoot().getCanonicalPath());
@@ -246,6 +256,7 @@ public class MelbourneTest {
     /**
      * We expect the earliest date to be the oldest valid date.
      */
+    @Ignore("Ignoring network tests")
     @Test
     public void testEarliestDate() throws IOException {
         try {
@@ -265,6 +276,7 @@ public class MelbourneTest {
         }
     }
 
+    @Ignore("Ignoring network tests")
     @Test
     public void testLatestDate() throws IOException {
         try {
@@ -304,13 +316,42 @@ public class MelbourneTest {
         LocalDate date = melbourne.getLatestDate(currentFiles);
         Assert.assertEquals(LocalDate.of(2015, Month.MARCH, 18), date);
     }
-    
+
     @Test
-    public void testConvertCSVFile() throws IOException{
+    public void testConvertCSVFile() throws IOException {
         // There is significant error checking in the Melbourne class itself.
         Path file = Paths.get(RESOURCE_DIRECTORY + "/18-03-2015.csv");
-        Path dest = Paths.get(RESOURCE_DIRECTORY + "/testOut.csv");
+        Path dest = Paths.get(RESOURCE_DIRECTORY + "/01-01-2000.csv");
         melbourne.convertCSVFile(file, dest);
     }
 
+    @Test
+    public void testRegex() {
+        String[] valid = {
+            "13-12-2014.csv",
+            "39-11-0000.csv",
+            "00-01-9999.csv",};
+        String[] inValid = {
+            "02-13-2015.csv",
+            "1-12-2014.csv",
+            "01-01-2014",
+            "02-11-1234.csv "
+        };
+
+        for (String s : valid) {
+            assert (s.matches(Melbourne.MelbourneCSVFile.FILENAME_REGEX)) : "Did not match: " + s;
+        }
+        for (String s : inValid) {
+            assert (!s.matches(Melbourne.MelbourneCSVFile.FILENAME_REGEX)) : "Incorrectly matched: " + s;
+        }
+    }
+
+    @Test
+    public void testGetDateFromFile() {
+        Path file = Paths.get(RESOURCE_DIRECTORY + "/18-03-2015.csv");
+        LocalDate date = melbourne.parseDateFromFilename(file);
+        
+        assert date.getDayOfMonth() == 18 && date.getMonthValue() == 3
+                && date.getYear() == 2015 : "Date incorrectly parsed!";
+    }
 }

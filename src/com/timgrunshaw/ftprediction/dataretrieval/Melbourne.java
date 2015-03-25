@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.Month;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -33,8 +34,18 @@ public class Melbourne {
     final static String URL_PREFIX = "http://uioomcomcall.jit.su/api/bydatecsv/";
     private String outputDirectory = "output/";
 
-    static class MelbourneCSVFile {
+    public static class MelbourneCSVFile {
 
+        /*
+        dd-mm-yyyy.csv
+        
+        Not the strongest checking, but easy to read. It does check that the format
+        doesn't change to mm-dd-yyyy.csv. 
+        */
+        static final String FILENAME_REGEX = "^([0123][0-9])-(0[1-9]|1[012])-(\\d\\d\\d\\d)\\.csv$"; 
+        static final DateTimeFormatter FILENAME_TO_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+
+        // What row each field starts on. 
         static final int HEADINGS_ROW = 8;
         static final int DATA_START_ROW = 9;
         static final int DATA_FINAL_ROW = 45; // Exclusive
@@ -86,7 +97,7 @@ public class Melbourne {
 
     Path downloadDataForDay(LocalDate day) throws IOException {
         String destinationPath = outputDirectory
-                + day.format(DateTimeFormatter.ofPattern("dd-MM-YYYY")) + ".csv";
+                + day.format(MelbourneCSVFile.FILENAME_TO_DATE) + ".csv";
         return downloadFile(generateCSVUrl(day), destinationPath);
     }
 
@@ -107,7 +118,7 @@ public class Melbourne {
     }
 
     String generateCSVUrl(LocalDate date) {
-        String dateString = date.format(DateTimeFormatter.ofPattern("dd-MM-YYYY"));
+        String dateString = date.format(MelbourneCSVFile.FILENAME_TO_DATE);
 
         return URL_PREFIX + dateString;
     }
@@ -159,17 +170,6 @@ public class Melbourne {
         }
     }
 
-    LocalDate parseDateFromFilename(Path file) throws DateTimeParseException {
-        String fileName = file.getFileName().toString();
-        if (fileName.length() >= 10) {
-            String dateStr = fileName.substring(0, 10);
-            LocalDate date = LocalDate.parse(dateStr, DateTimeFormatter.ofPattern("dd-MM-uuuu"));
-            return date;
-        } else {
-            throw new DateTimeParseException(null, fileName, fileName.length());
-        }
-    }
-
     /**
      * Specify a folder for the new converted files.
      *
@@ -202,7 +202,7 @@ public class Melbourne {
                 String line = null;
                 int lineNumber = 0;
                 while ((line = reader.readLine()) != null) {
-                    if (!isValidCsv(line, lineNumber)) {
+                    if (!isValidCsvContent(line, lineNumber)) {
                         throw new IllegalArgumentException("Not a valid Melbourne CSV file or format has changed: " + source + "\n"
                                 + "Line: " + lineNumber + "\n"
                                 + "Line content: " + line);
@@ -230,7 +230,7 @@ public class Melbourne {
      * @param lineNum - the line number of this line (zero indexed)
      * @return true if valid, false otherwise.
      */
-    boolean isValidCsv(String line, int lineNum) {
+    static public boolean isValidCsvContent(String line, int lineNum) {
         if (lineNum == 0 && !line.equals(MelbourneCSVFile.EXPECTED_FIRST_LINE)) {
             return false;
         }
@@ -249,5 +249,23 @@ public class Melbourne {
 
         // All checks passed.
         return true;
+    }
+    
+    
+    LocalDate parseDateFromFilename(Path file){
+        String fileName = file.getFileName().toString();
+        if(!fileName.matches(Melbourne.MelbourneCSVFile.FILENAME_REGEX)){
+            throw new IllegalArgumentException("File is invalid: " + fileName);
+        } 
+        
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        LocalDate date = LocalDate.parse(fileName.substring(0, 10), df);
+
+        return date;
+    }
+    
+    
+    void combineAllCsv(){
+        
     }
 }
