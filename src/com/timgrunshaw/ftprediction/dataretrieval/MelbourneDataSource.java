@@ -1,8 +1,9 @@
 package com.timgrunshaw.ftprediction.dataretrieval;
 
+import com.timgrunshaw.ftprediction.data.Melbourne;
+import com.timgrunshaw.ftprediction.data.Sensor;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -11,8 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Month;
-import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -21,15 +23,19 @@ import java.util.List;
 
 /**
  * This class represents the Melbourne data source. The most typical usage will
- * be: Melbourne melbourne = new Melbourne(); melbourne.update();
+ * be: MelbourneDateSource melbourneDS = new MelbourneDateSource(); melbourneDS.update();
  *
  * Which will simply fill the specified output folder (default: output/) with
  * all new CSV files from the Melbourne foot traffic data source.
- *
+ * 
+ * To use the data, run:
+ * Melbourne melbourne = melbourneDS.createMelbourne();
+ * 
+ * And retrieve the data from the melbourne object.
  *
  * @author Tim Grunshaw
  */
-public class Melbourne {
+public class MelbourneDataSource {
 
     final static String URL_PREFIX = "http://uioomcomcall.jit.su/api/bydatecsv/";
     private String outputDirectory = "output/";
@@ -37,12 +43,12 @@ public class Melbourne {
     public static class MelbourneCSVFile {
 
         /*
-        dd-mm-yyyy.csv
+         dd-mm-yyyy.csv
         
-        Not the strongest checking, but easy to read. It does check that the format
-        doesn't change to mm-dd-yyyy.csv. 
-        */
-        static final String FILENAME_REGEX = "^([0123][0-9])-(0[1-9]|1[012])-(\\d\\d\\d\\d)\\.csv$"; 
+         Not the strongest checking, but easy to read. It does check that the format
+         doesn't change to mm-dd-yyyy.csv. 
+         */
+        static final String FILENAME_REGEX = "^([0123][0-9])-(0[1-9]|1[012])-(\\d\\d\\d\\d)\\.csv$";
         static final DateTimeFormatter FILENAME_TO_DATE = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
         // What row each field starts on. 
@@ -63,14 +69,15 @@ public class Melbourne {
      *
      * Actually: 1st Feb 2014. Update: 9th October 2013.
      */
-    public final static LocalDate EARLIEST_DATE = LocalDate.of(2013, Month.OCTOBER, 9); //LocalDate.of(2009, Month.JULY, 1);
+    final static LocalDate EARLIEST_DATE = LocalDate.of(2013, Month.OCTOBER, 9); //LocalDate.of(2009, Month.JULY, 1);
 
     public void setOutputDirectory(String folderName) {
         outputDirectory = folderName + "/";
     }
 
     /**
-     *
+     * Download all CSV files from the Melbourne data source for the date range
+     * specified.
      * @param from - inclusive
      * @param to - exclusive
      */
@@ -95,6 +102,12 @@ public class Melbourne {
 
     }
 
+    /**
+     * Download the CSV file from the Melbourne data source for the specified day.
+     * @param day
+     * @return
+     * @throws IOException 
+     */
     Path downloadDataForDay(LocalDate day) throws IOException {
         String destinationPath = outputDirectory
                 + day.format(MelbourneCSVFile.FILENAME_TO_DATE) + ".csv";
@@ -126,6 +139,8 @@ public class Melbourne {
     /**
      * Update the set output directory with any new files available. Note: it
      * will not overwrite any files in the directory.
+     * @return 
+     * @throws java.io.IOException
      */
     public int update() throws IOException {
         ArrayList<LocalDate> currentFiles = new ArrayList<>();
@@ -156,6 +171,11 @@ public class Melbourne {
         return numFilesDownloaded;
     }
 
+    /**
+     * Returns the latest date in an unordered list of dates. 
+     * @param dates
+     * @return 
+     */
     LocalDate getLatestDate(List<LocalDate> dates) {
         if (dates.isEmpty()) {
             throw new IllegalArgumentException("Date list cannot be empty!");
@@ -171,9 +191,11 @@ public class Melbourne {
     }
 
     /**
-     * Specify a folder for the new converted files.
+     * Extracts only the useful data from all original CSV files in the
+     * output directory and writes to files of the same name in the specified
+     * destination
+     * @see convertCSVFile
      *
-     * @param sourceDir
      * @param destDir
      * @return
      */
@@ -192,6 +214,15 @@ public class Melbourne {
         }
     }
 
+    /**
+     * Extracts only the useful data from an original CSV file. Specifically,
+     * it creates a CSV file with the first row being midnight..11pm and the 
+     * first column being the sensor names. 
+     * 
+     * @param source
+     * @param dest
+     * @throws IOException
+     */
     void convertCSVFile(Path source, Path dest) throws IOException {
         if (!Files.isReadable(source)) {
             throw new IOException("File does not exist / is not readable: " + source.toString());
@@ -209,7 +240,7 @@ public class Melbourne {
                     }
                     if (lineNumber > MelbourneCSVFile.TOTAL_ROW) {
                         writer.close();
-                        return; // TODO write csv file. 
+                        return;
                     }
                     if (lineNumber >= MelbourneCSVFile.HEADINGS_ROW
                             && lineNumber <= MelbourneCSVFile.DATA_FINAL_ROW) {
@@ -230,7 +261,7 @@ public class Melbourne {
      * @param lineNum - the line number of this line (zero indexed)
      * @return true if valid, false otherwise.
      */
-    static public boolean isValidCsvContent(String line, int lineNum) {
+    boolean isValidCsvContent(String line, int lineNum) {
         if (lineNum == 0 && !line.equals(MelbourneCSVFile.EXPECTED_FIRST_LINE)) {
             return false;
         }
@@ -250,22 +281,106 @@ public class Melbourne {
         // All checks passed.
         return true;
     }
-    
-    
-    LocalDate parseDateFromFilename(Path file){
+
+    /**
+     * For a file with a name dd-mm-yyyy.csv, this method will return the date.
+     *
+     * @param file
+     * @return
+     */
+    LocalDate parseDateFromFilename(Path file) {
         String fileName = file.getFileName().toString();
-        if(!fileName.matches(Melbourne.MelbourneCSVFile.FILENAME_REGEX)){
+        if (!fileName.matches(MelbourneDataSource.MelbourneCSVFile.FILENAME_REGEX)) {
             throw new IllegalArgumentException("File is invalid: " + fileName);
-        } 
-        
+        }
+
         DateTimeFormatter df = DateTimeFormatter.ofPattern("dd-MM-yyyy");
         LocalDate date = LocalDate.parse(fileName.substring(0, 10), df);
 
         return date;
     }
-    
-    
-    void combineAllCsv(){
-        
+
+    /**
+     * Reads all CSV files in the output folder and creates a Melbourne foot
+     * traffic object which contains all the sensors and all their readings.
+     * 'N/A' readings are converted to the value of zero.
+     *
+     * @return
+     * @throws IOException
+     */
+    public Melbourne createMelbourne() throws IOException {
+
+        Melbourne melbourne = new Melbourne();
+
+        // Read directory
+        try (DirectoryStream<Path> dirStream = Files.newDirectoryStream(Paths.get(outputDirectory))) {
+            Iterator<Path> it = dirStream.iterator();
+
+            // For each file
+            while (it.hasNext()) {
+                Path input = it.next();
+
+                // Ignore files that are not a data file. 
+                if (input.getFileName().toString().matches(MelbourneCSVFile.FILENAME_REGEX)) {
+
+                    LocalDate fileDate = parseDateFromFilename(input);
+
+                    // Open the file
+                    try (BufferedReader reader = Files.newBufferedReader(input)) {
+                        int lineNumber = 0;
+                        String line = null;
+                        String lineContent[] = null;
+
+                        // Read file lines
+                        while ((line = reader.readLine()) != null) {
+
+                            // Ensure file content is valid.
+                            if (!isValidCsvContent(line, lineNumber)) {
+                                throw new IllegalArgumentException("Not a valid Melbourne CSV file or format has changed: " + input + "\n"
+                                        + "Line: " + lineNumber + "\n"
+                                        + "Line content: " + line);
+                            }
+
+                            // Only read data rows
+                            if (lineNumber >= (MelbourneCSVFile.HEADINGS_ROW + 1)
+                                    && lineNumber <= MelbourneCSVFile.DATA_FINAL_ROW) {
+                                lineContent = line.split(",");
+
+                                // Get the sensor associated with this line
+                                Sensor s = melbourne.getSensor(lineContent[0]);
+
+                                LocalTime hour = LocalTime.of(0, 0); // Midnight
+                                LocalDateTime dateTime = LocalDateTime.of(fileDate, hour);
+                                for (String val : lineContent) {
+                                    // Skip first
+                                    if (val.equals(lineContent[0])) {
+                                        continue;
+                                    }
+
+                                    // Set count
+                                    int count;
+                                    if (val.equals("N/A")) {
+                                        count = 0;
+                                    } else {
+                                        count = Integer.parseInt(val);
+                                    }
+                                    s.setCount(dateTime, count);
+
+                                    dateTime = dateTime.plusHours(1);
+                                }
+                            }
+
+                            // Break once we have finished reading data rows
+                            if (lineNumber > MelbourneCSVFile.DATA_FINAL_ROW) {
+                                break;
+                            }
+
+                            lineNumber++;
+                        }
+                    }
+                }
+            }
+        }
+        return melbourne;
     }
 }

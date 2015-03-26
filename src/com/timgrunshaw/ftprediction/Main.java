@@ -1,8 +1,7 @@
 package com.timgrunshaw.ftprediction;
 
-import com.timgrunshaw.ftprediction.dataretrieval.Melbourne;
+import com.timgrunshaw.ftprediction.dataretrieval.MelbourneDataSource;
 import java.io.IOException;
-import java.nio.file.Paths;
 
 /**
  * Entry class for foot traffic prediction program. 
@@ -12,11 +11,16 @@ import java.nio.file.Paths;
 public class Main {
     
     public static void main(String[] args) throws IOException{
-        Melbourne melbourne = new Melbourne();
+        MelbourneDataSource melbourne = new MelbourneDataSource();
+        melbourne.createMelbourne();
+        
+        /*
         int numUpdates = melbourne.update();
         System.out.println("Added " + numUpdates + " new days.");
         
         int numConvert = melbourne.convertAllCSVFilesInFolder(Paths.get("convertedOutput"));
         System.out.println("Converted " + numConvert);
+                */
+        
     }
 }

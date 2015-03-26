@@ -1,10 +1,6 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package com.timgrunshaw.ftprediction.dataretrieval;
 
+import com.timgrunshaw.ftprediction.data.Melbourne;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -13,9 +9,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Month;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -38,7 +33,7 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author Tim Grunshaw
  */
-public class MelbourneTest {
+public class MelbourneDataSourceTest {
 
     final long FULL_FILE_SIZE_THRESHOLD = 10000; // Test was 13933
     final long EMPTY_FILE_SIZE_THRESHOLD = 1000; // Test was 453
@@ -47,7 +42,7 @@ public class MelbourneTest {
     final String ACCEPTABLE_ERROR = "Server returned HTTP response code: 400";
     final String RESOURCE_DIRECTORY = "test/resources/melbourneTest/csv_files";
 
-    private Melbourne melbourne;
+    private MelbourneDataSource melbourne;
     private LocalDate validDay;
 
     @Rule
@@ -56,7 +51,7 @@ public class MelbourneTest {
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
-    public MelbourneTest() {
+    public MelbourneDataSourceTest() {
     }
 
     @BeforeClass
@@ -69,7 +64,7 @@ public class MelbourneTest {
 
     @Before
     public void setUp() throws IOException {
-        melbourne = new Melbourne();
+        melbourne = new MelbourneDataSource();
         melbourne.setOutputDirectory(tempFolder.getRoot().getCanonicalPath());
         validDay = LocalDate.now();
     }
@@ -87,7 +82,7 @@ public class MelbourneTest {
     public void testGenerateCSVUrl() {
         LocalDate date = LocalDate.of(2014, Month.MARCH, 17);
         String generatedUrl = melbourne.generateCSVUrl(date);
-        String expectedUrl = Melbourne.URL_PREFIX + "17-03-2014";
+        String expectedUrl = MelbourneDataSource.URL_PREFIX + "17-03-2014";
         assert generatedUrl.equals(expectedUrl);
     }
 
@@ -149,7 +144,7 @@ public class MelbourneTest {
             exception.expect(IllegalArgumentException.class);
             exception.expectMessage("From date must be equal to or "
                     + "after the EARLIEST_DATE");
-            LocalDate beforeEarliestDate = Melbourne.EARLIEST_DATE.minusDays(1);
+            LocalDate beforeEarliestDate = MelbourneDataSource.EARLIEST_DATE.minusDays(1);
 
             melbourne.downloadCSVFilesInRange(beforeEarliestDate, validDay);
         } catch (IOException IOEx) {
@@ -260,11 +255,11 @@ public class MelbourneTest {
     @Test
     public void testEarliestDate() throws IOException {
         try {
-            LocalDate earliestDate = Melbourne.EARLIEST_DATE;
+            LocalDate earliestDate = MelbourneDataSource.EARLIEST_DATE;
             Path file = melbourne.downloadDataForDay(earliestDate);
             assert Files.size(file) > FULL_FILE_SIZE_THRESHOLD : "File for the earliest date appears to be empty!";
 
-            LocalDate beforeEarliestDate = Melbourne.EARLIEST_DATE.minusDays(1);
+            LocalDate beforeEarliestDate = MelbourneDataSource.EARLIEST_DATE.minusDays(1);
             file = melbourne.downloadDataForDay(beforeEarliestDate);
             assert Files.size(file) < EMPTY_FILE_SIZE_THRESHOLD : "File before earliest date appears to have data!";
         } catch (IOException IOEx) {
@@ -339,10 +334,10 @@ public class MelbourneTest {
         };
 
         for (String s : valid) {
-            assert (s.matches(Melbourne.MelbourneCSVFile.FILENAME_REGEX)) : "Did not match: " + s;
+            assert (s.matches(MelbourneDataSource.MelbourneCSVFile.FILENAME_REGEX)) : "Did not match: " + s;
         }
         for (String s : inValid) {
-            assert (!s.matches(Melbourne.MelbourneCSVFile.FILENAME_REGEX)) : "Incorrectly matched: " + s;
+            assert (!s.matches(MelbourneDataSource.MelbourneCSVFile.FILENAME_REGEX)) : "Incorrectly matched: " + s;
         }
     }
 
@@ -353,5 +348,21 @@ public class MelbourneTest {
         
         assert date.getDayOfMonth() == 18 && date.getMonthValue() == 3
                 && date.getYear() == 2015 : "Date incorrectly parsed!";
+    }
+    
+    @Test
+    public void testCreateMelbourne() throws IOException{
+        // Copy two test files to the temp folder. 
+        Files.copy(Paths.get(RESOURCE_DIRECTORY + "/18-03-2015.csv"), 
+                Paths.get(tempFolder.getRoot().getCanonicalPath() + "/18-03-2015.csv"));
+        Files.copy(Paths.get(RESOURCE_DIRECTORY + "/17-03-2015.csv"), 
+                Paths.get(tempFolder.getRoot().getCanonicalPath() + "/17-03-2015.csv"));
+        
+        Melbourne m = melbourne.createMelbourne();
+        
+        LocalDateTime hour = LocalDateTime.of(2015, 3, 17, 7, 0); // 17-03-2015 at 7am
+        assert m.getSensor("Waterfront City").getCount(hour) == 46;
+        hour = LocalDateTime.of(2015, 3, 18, 17, 0);
+        assert m.getSensor("Birrarung Marr").getCount(hour) == 1081;
     }
 }
